@@ -1,0 +1,163 @@
+#!/bin/sh
+
+SCHEDULER=SLURM
+
+if [ "$SCHEDULER" == "SGE" ];then
+    pe_hostfile=$PE_HOSTFILE
+    pe_slots=$NSLOTS
+    pe_numNodes=`wc -l $PE_HOSTFILE`
+    home_batch_dir="$HOME/.sge"
+    BATCH_JOB_ID=$JOB_ID
+    NSLOTS_BATCH=$NSLOTS
+
+    # Cut out the "way" string and just get the wayness number.
+    pe_ppn=`echo $PE | sed -e 's/way//g;'`
+
+elif [ "$SCHEDULER" == "SLURM" ];then
+    BATCH_JOB_ID=$SLURM_JOB_ID
+
+    # ks: 12/18/12 - fix when only -N is used with sbatch; in that
+    # case, we do not have a SLURM_NPROCS value
+
+    if [ -n "$SLURM_NPROCS" ];then
+        NSLOTS_BATCH=$SLURM_NPROCS
+    else
+        NSLOTS_BATCH=$SLURM_NNODES
+    fi
+
+    pe_ppn=`echo $SLURM_TASKS_PER_NODE | awk -F '(' '{print $1}'`
+    export TACC_pe_ppn=$pe_ppn          #  McCalpin update for tacc_affinity (2012-12-05)
+else
+    echo "ERROR: Unknown batch system"
+    exit 1
+fi
+
+echo "TACC: Starting up job $BATCH_JOB_ID"
+
+srq_size=2048
+default_time_out=23
+
+srq_size=2048
+default_time_out=23
+
+# Find out which MPI stack we're using
+
+MODE=$TACC_MPI_GETMODE
+if [ -z $MODE ]; then
+    MODE=`getmode.sh`
+fi 
+
+# Set our files and directories
+
+home_batch_dir="$HOME/.slurm"
+
+if [ ! -d $home_batch_dir ]; then
+    mkdir -p $home_batch_dir
+fi
+
+# FYI: mktemp generates a filename with random numbers/letters
+# replacing the XXX
+
+hostfile_tacc=`mktemp $home_batch_dir/job.$BATCH_JOB_ID.hostlist.XXXXXXXX`
+nslotsfile_tacc=`mktemp $home_batch_dir/job.$BATCH_JOB_ID.info.XXXXXXXX`
+
+# Just to be sure, remove the host and nslots files in case they
+# already exist.  This should never happen...
+
+if [ -f $nslotsfile_tacc ]; then
+    rm $nslotsfile_tacc
+fi
+
+if [ -f $hostfile_tacc ]; then
+    rm $hostfile_tacc
+fi
+
+# Set local LD_PRELOAD with DARSHAN
+if [ x$LD_PRELOAD == "x" ]; then
+    IBRUN_LD_PRELOAD=""
+else
+    IBRUN_LD_PRELOAD="$LD_PRELOAD"
+    unset LD_PRELOAD
+fi
+
+if [ x$TACC_DARSHAN_LIB != "x" ]; then
+    if [ x$IBRUN_LD_PRELOAD == "x" ]; then
+        IBRUN_LD_PRELOAD="${TACC_DARSHAN_FORTRAN_LIB}:${TACC_DARSHAN_LIB}"
+    else
+        IBRUN_LD_PRELOAD="${IBRUN_LD_PRELOAD}:${TACC_DARSHAN_FORTRAN_LIB}:${TACC_DARSHAN_LIB}"
+    fi
+fi
+
+if [ -n "$IBRUN_LD_PRELOAD" ]; then
+    MVAPICH_LD_PRELOAD="LD_PRELOAD=$IBRUN_LD_PRELOAD"
+    OPENMPI_LD_PRELOAD="-x LD_PRELOAD=$IBRUN_LD_PRELOAD"
+fi
+
+scontrol show hostname $SLURM_NODELIST > $hostfile_tacc".tmp"
+
+if [ ! -s $hostfile_tacc".tmp" ];then
+    echo "TACC: Error -> slurm host list unavailable"
+    exit 1
+fi
+
+for i in `cat $hostfile_tacc.tmp`; do
+    echo $i >> $hostfile_tacc
+done
+
+rm -f $hostfile_tacc".tmp"
+
+#echo "TACC: Setup complete."
+
+# ------------------------------
+# Check for user provided NSLOTS
+# ------------------------------
+
+if [ x"$MY_NSLOTS" == "x" ]; then
+    if [ -f $nslotsfile_tacc ]; then
+        MY_NSLOTS=`cat $nslotsfile_tacc`
+    else
+        MY_NSLOTS=$NSLOTS_BATCH
+    fi
+fi
+
+#------------------------------
+# Let's finally launch the job
+#------------------------------
+
+echo "TACC: starting parallel tasks..."
+
+i=0
+for host in `cat $hostfile_tacc`
+do
+  ssh $host "cd `pwd`; env `build_env.pl` TACC_LAUNCHER_NHOSTS=$SLURM_NNODES TACC_LAUNCHER_HOST_ID=$i TACC_LAUNCHER_WAYNESS=$pe_ppn $*" &
+  i=`expr $i + 1`
+done
+wait
+
+res=$?
+
+if [ $res -ne 0 ]; then
+  echo "TACC: Parametric job exited with code: $res"
+fi
+
+#-----------------------
+# Job tear-down/cleanup
+#-----------------------
+
+echo "TACC: Shutting down parallel environment."
+
+if [ x"$TACC_KEEP_FILES" != "x" ]; then
+    if [ -f $nslotsfile_tacc ]; then
+	rm $nslotsfile_tacc
+    fi
+    if [ -f $hostfile_tacc ]; then
+	rm $hostfile_tacc
+    fi
+fi
+
+echo "TACC: Shutdown complete. Exiting." 
+
+exit $res
+
+
+

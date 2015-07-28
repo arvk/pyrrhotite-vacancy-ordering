@@ -1,0 +1,16 @@
+cd 1 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 2 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 3 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 4 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 5 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 6 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 7 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 8 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 9 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 10 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 11 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 12 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 13 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 14 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 15 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
+cd 16 ; matlab -nojvm -nodisplay -nosplash < pht-kmc.m
